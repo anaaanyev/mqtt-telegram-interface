@@ -212,11 +212,20 @@
             }
 
             // Запуск MQTT
-            initMqtt();
+            const checkMqttReady = () => {
+                if (window.Paho?.MQTT?.Client) {
+                    initMqtt(); // библиотека загружена, запускаем
+                } else {
+                    console.log("Ждём загрузки Paho MQTT...");
+                    setTimeout(checkMqttReady, 100); // пробуем снова через 100мс
+                }
+            };
+
+            checkMqttReady();
         });
     </script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js" defer></script>
 </body>
 
 </html>
