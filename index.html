@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление устройством</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 12px;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            font-size: 14px;
+        }
+
+        .sensor-card {
+            background: var(--tg-theme-secondary-bg-color, #f4f4f5);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+
+        .sensor-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+        }
+
+        .sensor-value {
+            font-weight: 500;
+        }
+
+        .control-card {
+            background: var(--tg-theme-secondary-bg-color, #f4f4f5);
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+
+        .slider-container {
+            margin: 16px 0;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            -webkit-appearance: none;
+            background: var(--tg-theme-button-color, #2481cc);
+            border-radius: 2px;
+        }
+
+        button {
+            width: 100%;
+            background: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        // Инициализация Telegram WebApp
+        const tg = window.Telegram.WebApp;
+
+        // Раскрываем на весь экран
+        tg.expand();
+
+        // Используем тему Telegram
+        document.body.style.backgroundColor = tg.themeParams.bg_color || '#ffffff';
+        document.body.style.color = tg.themeParams.text_color || '#000000';
+
+        // Кнопка "Назад"
+        tg.BackButton.show();
+        tg.BackButton.onClick(() => {
+            tg.close();
+        });
+    </script>
+    <div class="sensor-card">
+        <div class="sensor-row">
+            <span>Температура:</span>
+            <span id="temp" class="sensor-value">-- °C</span>
+        </div>
+        <div class="sensor-row">
+            <span>Влажность:</span>
+            <span id="hum" class="sensor-value">-- %</span>
+        </div>
+        <div class="sensor-row">
+            <span>VPD:</span>
+            <span id="vpd" class="sensor-value">-- кПа</span>
+        </div>
+    </div>
+
+    <div class="control-card">
+        <div class="sensor-row">
+            <span>Мощность LED:</span>
+            <span id="led" class="sensor-value">-- %</span>
+        </div>
+
+        <div class="slider-container">
+            <input type="range" min="0" max="100" id="ledRange" value="0">
+        </div>
+
+        <button onclick="setLed()">УСТАНОВИТЬ</button>
+    </div>
+
+    <script>
+        // Инициализация Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.enableClosingConfirmation();
+
+        // Получение параметров (если нужно передавать учетные данные MQTT безопасно)
+        const initData = tg.initDataUnsafe;
+
+        // Подключение к MQTT через WebSocket
+        let mqttClient = null;
+
+        function connectMqtt() {
+            // Лучше получать эти данные через параметры Mini App
+            const options = {
+                username: 'u_AXIEYE',
+                password: '1a1RQcQN',
+                protocol: 'wss',
+                host: 'm8.wqtt.ru',
+                port: 20438,
+                clientId: 'tg-' + Math.random().toString(16).substr(2, 8)
+            };
+
+            try {
+                mqttClient = new Paho.MQTT.Client(options.host, options.port, options.clientId);
+
+                mqttClient.onConnectionLost = (response) => {
+                    console.log('Connection lost:', response);
+                    setTimeout(connectMqtt, 5000);
+                };
+
+                mqttClient.onMessageArrived = (message) => {
+                    try {
+                        const data = JSON.parse(message.payloadString);
+
+                        if (message.destinationName === 'device1/state') {
+                            updateSensorData(data);
+                        } else if (message.destinationName === 'device1/led/status') {
+                            updateLedStatus(parseInt(message.payloadString));
+                        }
+                    } catch (e) {
+                        console.error('Error parsing message:', e);
+                    }
+                };
+
+                mqttClient.connect({
+                    userName: options.username,
+                    password: options.password,
+                    onSuccess: () => {
+                        console.log('MQTT connected');
+                        mqttClient.subscribe('device1/state');
+                        mqttClient.subscribe('device1/led/status');
+                    },
+                    onFailure: (err) => {
+                        console.error('MQTT connection failed:', err);
+                        setTimeout(connectMqtt, 5000);
+                    }
+                });
+            } catch (e) {
+                console.error('MQTT init error:', e);
+            }
+        }
+
+        // Функции обновления интерфейса
+        function updateSensorData(data) {
+            document.getElementById('temp').textContent = data.temp.toFixed(1) + ' °C';
+            document.getElementById('hum').textContent = data.hum.toFixed(1) + ' %';
+            document.getElementById('vpd').textContent = data.vpd.toFixed(2) + ' кПа';
+            document.getElementById('led').textContent = data.led + ' %';
+            document.getElementById('ledRange').value = data.led;
+        }
+
+        function updateLedStatus(power) {
+            document.getElementById('led').textContent = power + ' %';
+            document.getElementById('ledRange').value = power;
+        }
+
+        // Управление LED
+        function setLed() {
+            const value = parseInt(document.getElementById('ledRange').value);
+            if (!isNaN(value) && mqttClient && mqttClient.isConnected()) {
+                const message = new Paho.MQTT.Message(value.toString());
+                message.destinationName = 'device1/led';
+                mqttClient.send(message);
+            }
+        }
+
+        // Обновление значения при перемещении ползунка
+        document.getElementById('ledRange').addEventListener('input', function () {
+            document.getElementById('led').textContent = this.value + ' %';
+        });
+
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', () => {
+            // Подключаем MQTT клиент
+            connectMqtt();
+
+            // Можно добавить кнопку "Назад" в заголовок
+            if (tg.platform !== 'unknown') {
+                tg.BackButton.show();
+                tg.BackButton.onClick(() => {
+                    tg.close();
+                });
+            }
+        });
+    </script>
+
+    <!-- Используем Paho MQTT вместо mqtt.min.js для лучшей совместимости -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+</body>
+
+</html>
