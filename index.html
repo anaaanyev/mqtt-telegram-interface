@@ -113,9 +113,9 @@
         // Подключение к MQTT
         let mqttClient = null;
         const MQTT_TOPICS = {
-            STATE: 'device1/state',
-            LED_CONTROL: 'device1/led',
-            LED_STATUS: 'device1/led/status'
+            SENSORS: 'AXIEYE/sensors',
+            LED_CONTROL: 'AXIEYE/led/control',
+            LED_STATUS: 'AXIEYE/led/status'
         };
 
         function initMqtt() {
