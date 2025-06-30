@@ -274,9 +274,9 @@
             lastUpdate: document.getElementById('lastUpdate')
         };
 
-        // MQTT конфигурация - исправлен протокол на WSS
+        // MQTT конфигурация - рабочий порт 20441
         const MQTT_CONFIG = {
-            host: 'wss://m8.wqtt.ru:20441', // Изменен на WSS порт
+            host: 'wss://m8.wqtt.ru:20441', // Рабочий WSS порт
             options: {
                 clientId: 'tg-axieye-' + Math.random().toString(16).substr(2, 8),
                 username: 'u_AXIEYE',
@@ -284,7 +284,8 @@
                 clean: true,
                 reconnectPeriod: 3000,
                 connectTimeout: 10000,
-                keepalive: 60
+                keepalive: 60,
+                qos: 1 // Добавляем QoS для гарантии доставки
             }
         };
 
@@ -308,9 +309,21 @@
         function showError(message) {
             elements.error.textContent = message;
             elements.error.style.display = 'block';
+            elements.error.style.background = '#ffebee';
+            elements.error.style.color = '#c62828';
             setTimeout(() => {
                 elements.error.style.display = 'none';
             }, 5000);
+        }
+
+        function showSuccess(message) {
+            elements.error.textContent = message;
+            elements.error.style.display = 'block';
+            elements.error.style.background = '#e8f5e8';
+            elements.error.style.color = '#2e7d32';
+            setTimeout(() => {
+                elements.error.style.display = 'none';
+            }, 3000);
         }
 
         function updateLastSeen() {
@@ -338,17 +351,19 @@
                     updateConnectionStatus('connected', 'status-connected', '✅ Подключено к серверу');
                     elements.setLedBtn.disabled = false;
 
-                    // Подписка на топики
-                    client.subscribe(TOPICS.sensors, (err) => {
+                    // Подписка на топики с QoS
+                    client.subscribe(TOPICS.sensors, { qos: 1 }, (err) => {
                         if (err) console.error('❌ Subscribe error (sensors):', err);
+                        else console.log('✅ Subscribed to sensors');
                     });
 
-                    client.subscribe(TOPICS.ledStatus, (err) => {
+                    client.subscribe(TOPICS.ledStatus, { qos: 1 }, (err) => {
                         if (err) console.error('❌ Subscribe error (led/status):', err);
+                        else console.log('✅ Subscribed to LED status');
                     });
 
-                    // Тактильная обратная связь
-                    if (tg?.HapticFeedback) {
+                    // Тактильная обратная связь (с проверкой версии)
+                    if (tg?.HapticFeedback && tg.version >= '6.1') {
                         tg.HapticFeedback.notificationOccurred('success');
                     }
                 });
@@ -419,8 +434,8 @@
 
             updateLastSeen();
 
-            // Тактильная обратная связь
-            if (tg?.HapticFeedback) {
+            // Тактильная обратная связь (с проверкой версии)
+            if (tg?.HapticFeedback && tg.version >= '6.1') {
                 tg.HapticFeedback.impactOccurred('light');
             }
         }
@@ -447,22 +462,32 @@
 
             try {
                 elements.setLedBtn.classList.add('loading');
-                client.publish(TOPICS.ledControl, value.toString(), (err) => {
+                elements.setLedBtn.textContent = '⏳ ОТПРАВКА...';
+
+                // Публикуем с QoS и опциями для гарантии доставки
+                client.publish(TOPICS.ledControl, value.toString(), {
+                    qos: 1,
+                    retain: false
+                }, (err) => {
                     elements.setLedBtn.classList.remove('loading');
+                    elements.setLedBtn.textContent = '🔧 УСТАНОВИТЬ МОЩНОСТЬ';
+
                     if (err) {
                         console.error('❌ Publish error:', err);
                         showError('Ошибка отправки команды');
                     } else {
-                        console.log(`✅ LED power set to ${value}%`);
+                        console.log(`✅ LED command sent: ${value}%`);
+                        showSuccess(`✅ Команда отправлена: ${value}%`);
 
-                        // Тактильная обратная связь
-                        if (tg?.HapticFeedback) {
+                        // Тактильная обратная связь (с проверкой версии)
+                        if (tg?.HapticFeedback && tg.version >= '6.1') {
                             tg.HapticFeedback.impactOccurred('medium');
                         }
                     }
                 });
             } catch (error) {
                 elements.setLedBtn.classList.remove('loading');
+                elements.setLedBtn.textContent = '🔧 УСТАНОВИТЬ МОЩНОСТЬ';
                 console.error('❌ Set LED error:', error);
                 showError(`Ошибка: ${error.message}`);
             }
@@ -472,8 +497,8 @@
         elements.ledRange.addEventListener('input', function () {
             elements.sliderValue.textContent = `${this.value}%`;
 
-            // Легкая тактильная обратная связь при перемещении слайдера
-            if (tg?.HapticFeedback) {
+            // Легкая тактильная обратная связь при перемещении слайдера (с проверкой версии)
+            if (tg?.HapticFeedback && tg.version >= '6.1') {
                 tg.HapticFeedback.selectionChanged();
             }
         });
