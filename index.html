@@ -206,26 +206,28 @@
             });
 
             // Кнопка "Назад" для Telegram
-            if (tg?.BackButton) {
-                tg.BackButton.show();
-                tg.BackButton.onClick(() => tg.close());
-            }
-
-            // Запуск MQTT
-            const checkMqttReady = () => {
-                if (window.Paho?.MQTT?.Client) {
-                    initMqtt(); // библиотека загружена, запускаем
-                } else {
-                    console.log("Ждём загрузки Paho MQTT...");
-                    setTimeout(checkMqttReady, 100); // пробуем снова через 100мс
-                }
-            };
-
-            checkMqttReady();
+            // if (tg?.BackButton) {
+            //     tg.BackButton.show();
+            //     tg.BackButton.onClick(() => tg.close());
+            // }
         });
     </script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js" defer></script>
+    <!-- БИБЛИОТЕКА MQTT -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+
+    <!-- СКРИПТ С КОДОМ (initMqtt и т.д.) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.Paho?.MQTT?.Client) {
+                initMqtt();
+            } else {
+                console.log("Ждём загрузки Paho MQTT...");
+                setTimeout(() => location.reload(), 2000); // на крайняк — автоперезагрузка
+            }
+        });
+    </script>
+
 </body>
 
 </html>
