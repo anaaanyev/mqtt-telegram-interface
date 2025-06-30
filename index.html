@@ -148,7 +148,7 @@
                     console.log('Message arrived:', message.destinationName, message.payloadString);
                     try {
                         const data = JSON.parse(message.payloadString);
-                        if (message.destinationName === MQTT_TOPICS.STATE) {
+                        if (message.destinationName === MQTT_TOPICS.SENSORS) {
                             updateUI(data);
                         } else if (message.destinationName === MQTT_TOPICS.LED_STATUS) {
                             updateLed(parseInt(message.payloadString));
@@ -163,7 +163,7 @@
                     password: options.password,
                     onSuccess: () => {
                         console.log('MQTT connected');
-                        mqttClient.subscribe(MQTT_TOPICS.STATE, { qos: 0 });
+                        mqttClient.subscribe(MQTT_TOPICS.SENSORS, { qos: 0 });
                         mqttClient.subscribe(MQTT_TOPICS.LED_STATUS, { qos: 0 });
                     },
                     onFailure: (err) => {
