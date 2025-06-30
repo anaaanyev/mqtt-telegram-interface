@@ -96,97 +96,99 @@
     </div>
 
     <!-- Подключаем Paho MQTT до всего JS -->
+    <!-- Подключаем Paho MQTT -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
 
+    <!-- Тут весь твой код -->
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const tg = window.Telegram?.WebApp;
+        const tg = window.Telegram?.WebApp;
+        tg?.expand();
+        tg?.enableClosingConfirmation();
 
-            if (tg) {
-                tg.expand();
-                tg.enableClosingConfirmation();
+        document.body.style.backgroundColor = tg?.themeParams?.bg_color || '#ffffff';
+        document.body.style.color = tg?.themeParams?.text_color || '#000000';
+
+        const MQTT_TOPICS = {
+            SENSORS: 'AXIEYE/sensors',
+            LED_CONTROL: 'AXIEYE/led/control',
+            LED_STATUS: 'AXIEYE/led/status'
+        };
+
+        let mqttClient = null;
+
+        function updateUI(data) {
+            if (data.temp !== undefined) document.getElementById('temp').textContent = data.temp.toFixed(1) + ' °C';
+            if (data.hum !== undefined) document.getElementById('hum').textContent = data.hum.toFixed(1) + ' %';
+            if (data.vpd !== undefined) document.getElementById('vpd').textContent = data.vpd.toFixed(2) + ' кПа';
+            if (data.led !== undefined) updateLed(data.led);
+        }
+
+        function updateLed(power) {
+            document.getElementById('led').textContent = power + ' %';
+            document.getElementById('ledRange').value = power;
+        }
+
+        function setLed() {
+            const value = parseInt(document.getElementById('ledRange').value);
+            if (!isNaN(value) && mqttClient?.isConnected()) {
+                const message = new Paho.MQTT.Message(value.toString());
+                message.destinationName = MQTT_TOPICS.LED_CONTROL;
+                mqttClient.send(message);
+            }
+        }
+
+        function initMqtt() {
+            if (!window.Paho?.MQTT?.Client) {
+                console.error('❌ Paho MQTT not loaded');
+                return;
             }
 
-            // Тема Telegram
-            document.body.style.backgroundColor = tg?.themeParams?.bg_color || '#ffffff';
-            document.body.style.color = tg?.themeParams?.text_color || '#000000';
+            console.log('✅ Инициализация MQTT...');
+            const clientId = 'tg-' + Math.random().toString(16).substr(2, 8);
+            mqttClient = new Paho.MQTT.Client('m8.wqtt.ru', 20438, clientId);
 
-            // MQTT
-            let mqttClient = null;
-            const MQTT_TOPICS = {
-                SENSORS: 'AXIEYE/sensors',
-                LED_CONTROL: 'AXIEYE/led/control',
-                LED_STATUS: 'AXIEYE/led/status'
+            mqttClient.onConnectionLost = () => setTimeout(initMqtt, 5000);
+            mqttClient.onMessageArrived = (message) => {
+                try {
+                    const data = JSON.parse(message.payloadString);
+                    if (message.destinationName === MQTT_TOPICS.SENSORS) updateUI(data);
+                    if (message.destinationName === MQTT_TOPICS.LED_STATUS) updateLed(parseInt(message.payloadString));
+                } catch (e) {
+                    console.error('JSON parse error:', e);
+                }
             };
 
-            function updateUI(data) {
-                if (data.temp !== undefined) document.getElementById('temp').textContent = data.temp.toFixed(1) + ' °C';
-                if (data.hum !== undefined) document.getElementById('hum').textContent = data.hum.toFixed(1) + ' %';
-                if (data.vpd !== undefined) document.getElementById('vpd').textContent = data.vpd.toFixed(2) + ' кПа';
-                if (data.led !== undefined) updateLed(data.led);
-            }
-
-            function updateLed(power) {
-                document.getElementById('led').textContent = power + ' %';
-                document.getElementById('ledRange').value = power;
-            }
-
-            function setLed() {
-                const value = parseInt(document.getElementById('ledRange').value);
-                if (!isNaN(value) && mqttClient?.isConnected()) {
-                    const message = new Paho.MQTT.Message(value.toString());
-                    message.destinationName = MQTT_TOPICS.LED_CONTROL;
-                    mqttClient.send(message);
+            mqttClient.connect({
+                userName: 'u_AXIEYE',
+                password: '1a1RQcQN',
+                useSSL: false,
+                onSuccess: () => {
+                    console.log('✅ MQTT connected');
+                    mqttClient.subscribe(MQTT_TOPICS.SENSORS);
+                    mqttClient.subscribe(MQTT_TOPICS.LED_STATUS);
+                },
+                onFailure: (err) => {
+                    console.error('MQTT failed:', err);
+                    setTimeout(initMqtt, 5000);
                 }
-            }
-
-            function initMqtt() {
-                if (!window.Paho?.MQTT?.Client) {
-                    console.error('Paho MQTT not loaded');
-                    return;
-                }
-
-                const clientId = 'tg-' + Math.random().toString(16).substr(2, 8);
-                mqttClient = new Paho.MQTT.Client('m8.wqtt.ru', 20438, clientId);
-
-                mqttClient.onConnectionLost = () => setTimeout(initMqtt, 5000);
-                mqttClient.onMessageArrived = (message) => {
-                    try {
-                        const data = JSON.parse(message.payloadString);
-                        if (message.destinationName === MQTT_TOPICS.SENSORS) updateUI(data);
-                        if (message.destinationName === MQTT_TOPICS.LED_STATUS) updateLed(parseInt(message.payloadString));
-                    } catch (e) {
-                        console.error('JSON parse error:', e);
-                    }
-                };
-
-                mqttClient.connect({
-                    userName: 'u_AXIEYE',
-                    password: '1a1RQcQN',
-                    useSSL: false,
-                    onSuccess: () => {
-                        mqttClient.subscribe(MQTT_TOPICS.SENSORS);
-                        mqttClient.subscribe(MQTT_TOPICS.LED_STATUS);
-                    },
-                    onFailure: (err) => {
-                        console.error('MQTT failed', err);
-                        setTimeout(initMqtt, 5000);
-                    }
-                });
-            }
-
-            // Назначаем события
-            document.getElementById('ledRange').addEventListener('input', function () {
-                document.getElementById('led').textContent = this.value + ' %';
             });
+        }
 
-            document.querySelector('button').onclick = setLed;
-
-            // Инициализация MQTT
-            initMqtt();
+        // Запуск
+        document.getElementById('ledRange').addEventListener('input', function () {
+            document.getElementById('led').textContent = this.value + ' %';
         });
-    </script>
 
+        document.querySelector('button').onclick = setLed;
+
+        // Ждём пока скрипт точно загрузился
+        if (window.Paho?.MQTT?.Client) {
+            initMqtt();
+        } else {
+            console.warn("⏳ Ждём загрузки Paho...");
+            setTimeout(() => initMqtt(), 500); // безопасная задержка
+        }
+    </script>
 
 </body>
 
