@@ -1,202 +1,148 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление устройством</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 12px;
-            background: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
-            font-size: 14px;
-        }
+  <meta charset="UTF-8">
+  <title>Управление устройством</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 12px;
+      background: var(--tg-theme-bg-color, #ffffff);
+      color: var(--tg-theme-text-color, #000000);
+      font-size: 14px;
+    }
 
-        .sensor-card {
-            background: var(--tg-theme-secondary-bg-color, #f4f4f5);
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 8px;
-        }
+    .sensor-card, .control-card {
+      background: var(--tg-theme-secondary-bg-color, #f4f4f5);
+      border-radius: 12px;
+      padding: 12px;
+      margin: 12px 0;
+    }
 
-        .sensor-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 8px 0;
-        }
+    .sensor-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 8px 0;
+    }
 
-        .sensor-value {
-            font-weight: 500;
-        }
+    .sensor-value {
+      font-weight: 500;
+    }
 
-        .control-card {
-            background: var(--tg-theme-secondary-bg-color, #f4f4f5);
-            border-radius: 12px;
-            padding: 12px;
-            margin-top: 12px;
-        }
+    .slider-container {
+      margin: 16px 0;
+    }
 
-        .slider-container {
-            margin: 16px 0;
-        }
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      -webkit-appearance: none;
+      background: var(--tg-theme-button-color, #2481cc);
+      border-radius: 2px;
+    }
 
-        input[type="range"] {
-            width: 100%;
-            height: 4px;
-            -webkit-appearance: none;
-            background: var(--tg-theme-button-color, #2481cc);
-            border-radius: 2px;
-        }
-
-        button {
-            width: 100%;
-            background: var(--tg-theme-button-color, #2481cc);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            border: none;
-            padding: 10px 16px;
-            border-radius: 10px;
-            font-weight: 500;
-            cursor: pointer;
-        }
-    </style>
+    button {
+      width: 100%;
+      background: var(--tg-theme-button-color, #2481cc);
+      color: var(--tg-theme-button-text-color, #ffffff);
+      border: none;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+  </style>
 </head>
-
 <body>
 
-    <div class="sensor-card">
-        <div class="sensor-row">
-            <span>Температура:</span>
-            <span id="temp" class="sensor-value">-- °C</span>
-        </div>
-        <div class="sensor-row">
-            <span>Влажность:</span>
-            <span id="hum" class="sensor-value">-- %</span>
-        </div>
-        <div class="sensor-row">
-            <span>VPD:</span>
-            <span id="vpd" class="sensor-value">-- кПа</span>
-        </div>
+  <div class="sensor-card">
+    <div class="sensor-row">
+      <span>Температура:</span>
+      <span id="temp" class="sensor-value">-- °C</span>
+    </div>
+    <div class="sensor-row">
+      <span>Влажность:</span>
+      <span id="hum" class="sensor-value">-- %</span>
+    </div>
+    <div class="sensor-row">
+      <span>VPD:</span>
+      <span id="vpd" class="sensor-value">-- кПа</span>
+    </div>
+  </div>
+
+  <div class="control-card">
+    <div class="sensor-row">
+      <span>Мощность LED:</span>
+      <span id="led" class="sensor-value">-- %</span>
     </div>
 
-    <div class="control-card">
-        <div class="sensor-row">
-            <span>Мощность LED:</span>
-            <span id="led" class="sensor-value">-- %</span>
-        </div>
-
-        <div class="slider-container">
-            <input type="range" min="0" max="100" id="ledRange" value="0">
-        </div>
-
-        <button onclick="setLed()">УСТАНОВИТЬ</button>
+    <div class="slider-container">
+      <input type="range" min="0" max="100" id="ledRange" value="0">
     </div>
 
-    <!-- Подключаем Paho MQTT -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+    <button onclick="setLed()">УСТАНОВИТЬ</button>
+  </div>
 
-    <!-- Тут весь твой код -->
-    <script>
-        const tg = window.Telegram?.WebApp;
-        tg?.expand();
-        tg?.enableClosingConfirmation();
+  <script>
+    // Telegram WebApp theme
+    const tg = window.Telegram?.WebApp;
+    tg?.expand();
+    tg?.enableClosingConfirmation();
+    document.body.style.backgroundColor = tg?.themeParams?.bg_color || '#ffffff';
+    document.body.style.color = tg?.themeParams?.text_color || '#000000';
 
-        document.body.style.backgroundColor = tg?.themeParams?.bg_color || '#ffffff';
-        document.body.style.color = tg?.themeParams?.text_color || '#000000';
+    // MQTT client
+    const client = mqtt.connect('ws://m8.wqtt.ru:20438', {
+      clientId: 'tg-' + Math.random().toString(16).substr(2, 8),
+      username: 'u_AXIEYE',
+      password: '1a1RQcQN',
+      clean: true,
+      reconnectPeriod: 5000
+    });
 
-        const MQTT_TOPICS = {
-            SENSORS: 'AXIEYE/sensors',
-            LED_CONTROL: 'AXIEYE/led/control',
-            LED_STATUS: 'AXIEYE/led/status'
-        };
+    client.on('connect', () => {
+      console.log('✅ MQTT.js connected');
+      client.subscribe('AXIEYE/sensors');
+      client.subscribe('AXIEYE/led/status');
+    });
 
-        let mqttClient = null;
+    client.on('message', (topic, message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        if (topic === 'AXIEYE/sensors') updateUI(data);
+        if (topic === 'AXIEYE/led/status') updateLed(parseInt(message.toString()));
+      } catch (e) {
+        console.error('❌ JSON parse error:', e);
+      }
+    });
 
-        function updateUI(data) {
-            if (data.temp !== undefined) document.getElementById('temp').textContent = data.temp.toFixed(1) + ' °C';
-            if (data.hum !== undefined) document.getElementById('hum').textContent = data.hum.toFixed(1) + ' %';
-            if (data.vpd !== undefined) document.getElementById('vpd').textContent = data.vpd.toFixed(2) + ' кПа';
-            if (data.led !== undefined) updateLed(data.led);
-        }
+    function updateUI(data) {
+      if (data.temp !== undefined) document.getElementById('temp').textContent = data.temp.toFixed(1) + ' °C';
+      if (data.hum !== undefined) document.getElementById('hum').textContent = data.hum.toFixed(1) + ' %';
+      if (data.vpd !== undefined) document.getElementById('vpd').textContent = data.vpd.toFixed(2) + ' кПа';
+      if (data.led !== undefined) updateLed(data.led);
+    }
 
-        function updateLed(power) {
-            document.getElementById('led').textContent = power + ' %';
-            document.getElementById('ledRange').value = power;
-        }
+    function updateLed(power) {
+      document.getElementById('led').textContent = power + ' %';
+      document.getElementById('ledRange').value = power;
+    }
 
-        function setLed() {
-            const value = parseInt(document.getElementById('ledRange').value);
-            if (!isNaN(value) && mqttClient?.isConnected()) {
-                const message = new Paho.MQTT.Message(value.toString());
-                message.destinationName = MQTT_TOPICS.LED_CONTROL;
-                mqttClient.send(message);
-            }
-        }
+    function setLed() {
+      const value = parseInt(document.getElementById('ledRange').value);
+      if (!isNaN(value)) {
+        client.publish('AXIEYE/led/control', value.toString());
+      }
+    }
 
-        function initMqtt() {
-            if (!window.Paho?.MQTT?.Client) {
-                console.error('❌ Paho MQTT not loaded');
-                return;
-            }
-
-            console.log('✅ Инициализация MQTT...');
-            const clientId = 'tg-' + Math.random().toString(16).substr(2, 8);
-            mqttClient = new Paho.MQTT.Client('m8.wqtt.ru', 20438, clientId);
-
-            mqttClient.onConnectionLost = () => setTimeout(initMqtt, 5000);
-            mqttClient.onMessageArrived = (message) => {
-                try {
-                    const data = JSON.parse(message.payloadString);
-                    if (message.destinationName === MQTT_TOPICS.SENSORS) updateUI(data);
-                    if (message.destinationName === MQTT_TOPICS.LED_STATUS) updateLed(parseInt(message.payloadString));
-                } catch (e) {
-                    console.error('JSON parse error:', e);
-                }
-            };
-
-            mqttClient.connect({
-                userName: 'u_AXIEYE',
-                password: '1a1RQcQN',
-                useSSL: false,
-                onSuccess: () => {
-                    console.log('✅ MQTT connected');
-                    mqttClient.subscribe(MQTT_TOPICS.SENSORS);
-                    mqttClient.subscribe(MQTT_TOPICS.LED_STATUS);
-                },
-                onFailure: (err) => {
-                    console.error('MQTT failed:', err);
-                    setTimeout(initMqtt, 5000);
-                }
-            });
-        }
-
-        // Запуск
-        document.getElementById('ledRange').addEventListener('input', function () {
-            document.getElementById('led').textContent = this.value + ' %';
-        });
-
-        document.querySelector('button').onclick = setLed;
-
-        function waitForPahoAndInit(retry = 0) {
-            if (window.Paho?.MQTT?.Client) {
-                console.log('✅ Paho MQTT загружен');
-                initMqtt();
-            } else if (retry < 20) { // максимум 20 попыток (10 сек)
-                console.log(`⏳ Ожидание Paho... попытка ${retry + 1}`);
-                setTimeout(() => waitForPahoAndInit(retry + 1), 500);
-            } else {
-                console.error('❌ Paho MQTT так и не загрузился!');
-            }
-        }
-
-        // запускаем
-        waitForPahoAndInit();
-
-    </script>
-
+    // Обработка ползунка
+    document.getElementById('ledRange').addEventListener('input', function () {
+      document.getElementById('led').textContent = this.value + ' %';
+    });
+  </script>
 </body>
-
 </html>
