@@ -95,7 +95,6 @@
         <button onclick="setLed()">УСТАНОВИТЬ</button>
     </div>
 
-    <!-- Подключаем Paho MQTT до всего JS -->
     <!-- Подключаем Paho MQTT -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
 
@@ -181,13 +180,21 @@
 
         document.querySelector('button').onclick = setLed;
 
-        // Ждём пока скрипт точно загрузился
-        if (window.Paho?.MQTT?.Client) {
-            initMqtt();
-        } else {
-            console.warn("⏳ Ждём загрузки Paho...");
-            setTimeout(() => initMqtt(), 500); // безопасная задержка
+        function waitForPahoAndInit(retry = 0) {
+            if (window.Paho?.MQTT?.Client) {
+                console.log('✅ Paho MQTT загружен');
+                initMqtt();
+            } else if (retry < 20) { // максимум 20 попыток (10 сек)
+                console.log(`⏳ Ожидание Paho... попытка ${retry + 1}`);
+                setTimeout(() => waitForPahoAndInit(retry + 1), 500);
+            } else {
+                console.error('❌ Paho MQTT так и не загрузился!');
+            }
         }
+
+        // запускаем
+        waitForPahoAndInit();
+
     </script>
 
 </body>
