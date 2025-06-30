@@ -443,8 +443,12 @@
         // Обновление статуса LED
         function updateLedStatus(power) {
             elements.led.textContent = `${power} %`;
-            elements.ledRange.value = power;
-            elements.sliderValue.textContent = `${power}%`;
+
+            // Обновляем слайдер только если пользователь его не трогал
+            if (!elements.ledRange.dataset.userModified) {
+                elements.ledRange.value = power;
+                elements.sliderValue.textContent = `${power}%`;
+            }
         }
 
         // Установка мощности LED
@@ -478,6 +482,7 @@
                     } else {
                         console.log(`✅ LED command sent: ${value}%`);
                         showSuccess(`✅ Команда отправлена: ${value}%`);
+                        elements.ledRange.dataset.userModified = 'false'; // Сбрасываем флаг после отправки
 
                         // Тактильная обратная связь (с проверкой версии)
                         if (tg?.HapticFeedback && tg.version >= '6.1') {
@@ -496,6 +501,7 @@
         // Обработчик слайдера
         elements.ledRange.addEventListener('input', function () {
             elements.sliderValue.textContent = `${this.value}%`;
+            this.dataset.userModified = 'true'; // Отмечаем что пользователь изменил
 
             // Легкая тактильная обратная связь при перемещении слайдера (с проверкой версии)
             if (tg?.HapticFeedback && tg.version >= '6.1') {
