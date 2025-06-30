@@ -435,9 +435,9 @@
             updateLastSeen();
 
             // Тактильная обратная связь (с проверкой версии)
-            if (tg?.HapticFeedback && tg.version >= '6.1') {
-                tg.HapticFeedback.impactOccurred('light');
-            }
+            // if (tg?.HapticFeedback && tg.version >= '6.1') {
+            //     tg.HapticFeedback.impactOccurred('light');
+            // }
         }
 
         // Обновление статуса LED
@@ -504,9 +504,9 @@
             this.dataset.userModified = 'true'; // Отмечаем что пользователь изменил
 
             // Легкая тактильная обратная связь при перемещении слайдера (с проверкой версии)
-            if (tg?.HapticFeedback && tg.version >= '6.1') {
-                tg.HapticFeedback.selectionChanged();
-            }
+            // if (tg?.HapticFeedback && tg.version >= '6.1') {
+            //     tg.HapticFeedback.selectionChanged();
+            // }
         });
 
         // Инициализация при загрузке страницы
