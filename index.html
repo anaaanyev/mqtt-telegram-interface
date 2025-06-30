@@ -1,148 +1,509 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Управление устройством</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      margin: 0;
-      padding: 12px;
-      background: var(--tg-theme-bg-color, #ffffff);
-      color: var(--tg-theme-text-color, #000000);
-      font-size: 14px;
-    }
+    <meta charset="UTF-8">
+    <title>Управление устройством</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Используем CDN версию MQTT.js v5 вместо unpkg -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
 
-    .sensor-card, .control-card {
-      background: var(--tg-theme-secondary-bg-color, #f4f4f5);
-      border-radius: 12px;
-      padding: 12px;
-      margin: 12px 0;
-    }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            font-size: 14px;
+            line-height: 1.4;
+        }
 
-    .sensor-row {
-      display: flex;
-      justify-content: space-between;
-      margin: 8px 0;
-    }
+        .connection-status {
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            text-align: center;
+            font-weight: 500;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
 
-    .sensor-value {
-      font-weight: 500;
-    }
+        .status-connecting {
+            background: #ff9800;
+            color: white;
+        }
 
-    .slider-container {
-      margin: 16px 0;
-    }
+        .status-connected {
+            background: #4CAF50;
+            color: white;
+        }
 
-    input[type="range"] {
-      width: 100%;
-      height: 4px;
-      -webkit-appearance: none;
-      background: var(--tg-theme-button-color, #2481cc);
-      border-radius: 2px;
-    }
+        .status-disconnected {
+            background: #f44336;
+            color: white;
+        }
 
-    button {
-      width: 100%;
-      background: var(--tg-theme-button-color, #2481cc);
-      color: var(--tg-theme-button-text-color, #ffffff);
-      border: none;
-      padding: 10px 16px;
-      border-radius: 10px;
-      font-weight: 500;
-      cursor: pointer;
-    }
-  </style>
+        .sensor-card,
+        .control-card {
+            background: var(--tg-theme-secondary-bg-color, #f4f4f5);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 12px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-title {
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--tg-theme-text-color, #000000);
+            font-size: 15px;
+        }
+
+        .sensor-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+            padding: 4px 0;
+        }
+
+        .sensor-label {
+            font-weight: 400;
+            color: var(--tg-theme-hint-color, #999999);
+        }
+
+        .sensor-value {
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .slider-container {
+            margin: 20px 0;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: var(--tg-theme-hint-color, #999999);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: var(--tg-theme-section-bg-color, #efeff3);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--tg-theme-button-color, #2481cc);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--tg-theme-button-color, #2481cc);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        button {
+            width: 100%;
+            background: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 8px;
+        }
+
+        button:active {
+            transform: scale(0.98);
+            opacity: 0.8;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .last-update {
+            font-size: 11px;
+            color: var(--tg-theme-hint-color, #999999);
+            text-align: center;
+            margin-top: 8px;
+        }
+
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin: 8px 0;
+            font-size: 13px;
+            display: none;
+        }
+
+        /* Анимация загрузки */
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+    </style>
 </head>
+
 <body>
 
-  <div class="sensor-card">
-    <div class="sensor-row">
-      <span>Температура:</span>
-      <span id="temp" class="sensor-value">-- °C</span>
-    </div>
-    <div class="sensor-row">
-      <span>Влажность:</span>
-      <span id="hum" class="sensor-value">-- %</span>
-    </div>
-    <div class="sensor-row">
-      <span>VPD:</span>
-      <span id="vpd" class="sensor-value">-- кПа</span>
-    </div>
-  </div>
-
-  <div class="control-card">
-    <div class="sensor-row">
-      <span>Мощность LED:</span>
-      <span id="led" class="sensor-value">-- %</span>
+    <div id="connectionStatus" class="connection-status status-connecting">
+        🔄 Подключение к серверу...
     </div>
 
-    <div class="slider-container">
-      <input type="range" min="0" max="100" id="ledRange" value="0">
+    <div class="error-message" id="errorMessage"></div>
+
+    <div class="sensor-card">
+        <div class="card-title">📊 Датчики окружающей среды</div>
+        <div class="sensor-row">
+            <span class="sensor-label">Температура:</span>
+            <span id="temp" class="sensor-value pulse">-- °C</span>
+        </div>
+        <div class="sensor-row">
+            <span class="sensor-label">Влажность:</span>
+            <span id="hum" class="sensor-value pulse">-- %</span>
+        </div>
+        <div class="sensor-row">
+            <span class="sensor-label">VPD:</span>
+            <span id="vpd" class="sensor-value pulse">-- кПа</span>
+        </div>
+        <div class="last-update" id="lastUpdate">Ожидание данных...</div>
     </div>
 
-    <button onclick="setLed()">УСТАНОВИТЬ</button>
-  </div>
+    <div class="control-card">
+        <div class="card-title">💡 Управление освещением</div>
 
-  <script>
-    // Telegram WebApp theme
-    const tg = window.Telegram?.WebApp;
-    tg?.expand();
-    tg?.enableClosingConfirmation();
-    document.body.style.backgroundColor = tg?.themeParams?.bg_color || '#ffffff';
-    document.body.style.color = tg?.themeParams?.text_color || '#000000';
+        <div class="sensor-row">
+            <span class="sensor-label">Текущая мощность:</span>
+            <span id="led" class="sensor-value">-- %</span>
+        </div>
 
-    // MQTT client
-    const client = mqtt.connect('ws://m8.wqtt.ru:20438', {
-      clientId: 'tg-' + Math.random().toString(16).substr(2, 8),
-      username: 'u_AXIEYE',
-      password: '1a1RQcQN',
-      clean: true,
-      reconnectPeriod: 5000
-    });
+        <div class="slider-container">
+            <div class="slider-label">
+                <span>Установить мощность LED:</span>
+                <span id="sliderValue">0%</span>
+            </div>
+            <input type="range" min="0" max="100" id="ledRange" value="0">
+        </div>
 
-    client.on('connect', () => {
-      console.log('✅ MQTT.js connected');
-      client.subscribe('AXIEYE/sensors');
-      client.subscribe('AXIEYE/led/status');
-    });
+        <button id="setLedBtn" onclick="setLed()" disabled>
+            🔧 УСТАНОВИТЬ МОЩНОСТЬ
+        </button>
+    </div>
 
-    client.on('message', (topic, message) => {
-      try {
-        const data = JSON.parse(message.toString());
-        if (topic === 'AXIEYE/sensors') updateUI(data);
-        if (topic === 'AXIEYE/led/status') updateLed(parseInt(message.toString()));
-      } catch (e) {
-        console.error('❌ JSON parse error:', e);
-      }
-    });
+    <script>
+        // Инициализация Telegram WebApp
+        const tg = window.Telegram?.WebApp;
+        if (tg) {
+            tg.ready();
+            tg.expand();
+            tg.enableClosingConfirmation();
 
-    function updateUI(data) {
-      if (data.temp !== undefined) document.getElementById('temp').textContent = data.temp.toFixed(1) + ' °C';
-      if (data.hum !== undefined) document.getElementById('hum').textContent = data.hum.toFixed(1) + ' %';
-      if (data.vpd !== undefined) document.getElementById('vpd').textContent = data.vpd.toFixed(2) + ' кПа';
-      if (data.led !== undefined) updateLed(data.led);
-    }
+            // Применение темы
+            if (tg.themeParams) {
+                document.body.style.backgroundColor = tg.themeParams.bg_color || '#ffffff';
+                document.body.style.color = tg.themeParams.text_color || '#000000';
+            }
 
-    function updateLed(power) {
-      document.getElementById('led').textContent = power + ' %';
-      document.getElementById('ledRange').value = power;
-    }
+            // Настройка главной кнопки
+            tg.MainButton.text = "Закрыть";
+            tg.MainButton.show();
+            tg.MainButton.onClick(() => tg.close());
+        }
 
-    function setLed() {
-      const value = parseInt(document.getElementById('ledRange').value);
-      if (!isNaN(value)) {
-        client.publish('AXIEYE/led/control', value.toString());
-      }
-    }
+        // Элементы DOM
+        const elements = {
+            status: document.getElementById('connectionStatus'),
+            error: document.getElementById('errorMessage'),
+            temp: document.getElementById('temp'),
+            hum: document.getElementById('hum'),
+            vpd: document.getElementById('vpd'),
+            led: document.getElementById('led'),
+            ledRange: document.getElementById('ledRange'),
+            sliderValue: document.getElementById('sliderValue'),
+            setLedBtn: document.getElementById('setLedBtn'),
+            lastUpdate: document.getElementById('lastUpdate')
+        };
 
-    // Обработка ползунка
-    document.getElementById('ledRange').addEventListener('input', function () {
-      document.getElementById('led').textContent = this.value + ' %';
-    });
-  </script>
+        // MQTT конфигурация - исправлен протокол на WSS
+        const MQTT_CONFIG = {
+            host: 'wss://m8.wqtt.ru:20439', // Изменен на WSS порт
+            options: {
+                clientId: 'tg-axieye-' + Math.random().toString(16).substr(2, 8),
+                username: 'u_AXIEYE',
+                password: '1a1RQcQN',
+                clean: true,
+                reconnectPeriod: 3000,
+                connectTimeout: 10000,
+                keepalive: 60
+            }
+        };
+
+        const TOPICS = {
+            sensors: 'AXIEYE/sensors',
+            ledStatus: 'AXIEYE/led/status',
+            ledControl: 'AXIEYE/led/control'
+        };
+
+        let client = null;
+        let isConnected = false;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
+
+        // Функции для обновления UI
+        function updateConnectionStatus(status, className, message) {
+            elements.status.textContent = message;
+            elements.status.className = `connection-status ${className}`;
+        }
+
+        function showError(message) {
+            elements.error.textContent = message;
+            elements.error.style.display = 'block';
+            setTimeout(() => {
+                elements.error.style.display = 'none';
+            }, 5000);
+        }
+
+        function updateLastSeen() {
+            const now = new Date();
+            elements.lastUpdate.textContent = `Обновлено: ${now.toLocaleTimeString()}`;
+        }
+
+        function removePulse() {
+            document.querySelectorAll('.pulse').forEach(el => {
+                el.classList.remove('pulse');
+            });
+        }
+
+        // MQTT подключение
+        function connectMQTT() {
+            try {
+                updateConnectionStatus('connecting', 'status-connecting', '🔄 Подключение к серверу...');
+
+                client = mqtt.connect(MQTT_CONFIG.host, MQTT_CONFIG.options);
+
+                client.on('connect', () => {
+                    console.log('✅ MQTT connected');
+                    isConnected = true;
+                    reconnectAttempts = 0;
+                    updateConnectionStatus('connected', 'status-connected', '✅ Подключено к серверу');
+                    elements.setLedBtn.disabled = false;
+
+                    // Подписка на топики
+                    client.subscribe(TOPICS.sensors, (err) => {
+                        if (err) console.error('❌ Subscribe error (sensors):', err);
+                    });
+
+                    client.subscribe(TOPICS.ledStatus, (err) => {
+                        if (err) console.error('❌ Subscribe error (led/status):', err);
+                    });
+
+                    // Тактильная обратная связь
+                    if (tg?.HapticFeedback) {
+                        tg.HapticFeedback.notificationOccurred('success');
+                    }
+                });
+
+                client.on('error', (error) => {
+                    console.error('❌ MQTT error:', error);
+                    isConnected = false;
+                    updateConnectionStatus('disconnected', 'status-disconnected', '❌ Ошибка подключения');
+                    elements.setLedBtn.disabled = true;
+                    showError(`Ошибка MQTT: ${error.message}`);
+                });
+
+                client.on('close', () => {
+                    console.log('🔌 MQTT connection closed');
+                    isConnected = false;
+                    updateConnectionStatus('disconnected', 'status-disconnected', '🔌 Соединение разорвано');
+                    elements.setLedBtn.disabled = true;
+
+                    // Переподключение с экспоненциальной задержкой
+                    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                        reconnectAttempts++;
+                        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+                        setTimeout(() => {
+                            if (!isConnected) connectMQTT();
+                        }, delay);
+                    }
+                });
+
+                client.on('message', (topic, message) => {
+                    try {
+                        const data = message.toString();
+                        console.log(`📩 Message from ${topic}:`, data);
+
+                        if (topic === TOPICS.sensors) {
+                            const sensorData = JSON.parse(data);
+                            updateSensorData(sensorData);
+                        } else if (topic === TOPICS.ledStatus) {
+                            updateLedStatus(parseInt(data));
+                        }
+                    } catch (error) {
+                        console.error('❌ Message processing error:', error);
+                        showError('Ошибка обработки данных с сервера');
+                    }
+                });
+
+            } catch (error) {
+                console.error('❌ MQTT connection error:', error);
+                showError(`Ошибка подключения: ${error.message}`);
+            }
+        }
+
+        // Обновление данных датчиков
+        function updateSensorData(data) {
+            removePulse();
+
+            if (data.temp !== undefined) {
+                elements.temp.textContent = `${data.temp.toFixed(1)} °C`;
+            }
+            if (data.hum !== undefined) {
+                elements.hum.textContent = `${data.hum.toFixed(1)} %`;
+            }
+            if (data.vpd !== undefined) {
+                elements.vpd.textContent = `${data.vpd.toFixed(2)} кПа`;
+            }
+            if (data.led !== undefined) {
+                updateLedStatus(data.led);
+            }
+
+            updateLastSeen();
+
+            // Тактильная обратная связь
+            if (tg?.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('light');
+            }
+        }
+
+        // Обновление статуса LED
+        function updateLedStatus(power) {
+            elements.led.textContent = `${power} %`;
+            elements.ledRange.value = power;
+            elements.sliderValue.textContent = `${power}%`;
+        }
+
+        // Установка мощности LED
+        function setLed() {
+            if (!isConnected || !client) {
+                showError('Нет соединения с сервером');
+                return;
+            }
+
+            const value = parseInt(elements.ledRange.value);
+            if (isNaN(value) || value < 0 || value > 100) {
+                showError('Некорректное значение мощности');
+                return;
+            }
+
+            try {
+                elements.setLedBtn.classList.add('loading');
+                client.publish(TOPICS.ledControl, value.toString(), (err) => {
+                    elements.setLedBtn.classList.remove('loading');
+                    if (err) {
+                        console.error('❌ Publish error:', err);
+                        showError('Ошибка отправки команды');
+                    } else {
+                        console.log(`✅ LED power set to ${value}%`);
+
+                        // Тактильная обратная связь
+                        if (tg?.HapticFeedback) {
+                            tg.HapticFeedback.impactOccurred('medium');
+                        }
+                    }
+                });
+            } catch (error) {
+                elements.setLedBtn.classList.remove('loading');
+                console.error('❌ Set LED error:', error);
+                showError(`Ошибка: ${error.message}`);
+            }
+        }
+
+        // Обработчик слайдера
+        elements.ledRange.addEventListener('input', function () {
+            elements.sliderValue.textContent = `${this.value}%`;
+
+            // Легкая тактильная обратная связь при перемещении слайдера
+            if (tg?.HapticFeedback) {
+                tg.HapticFeedback.selectionChanged();
+            }
+        });
+
+        // Инициализация при загрузке страницы
+        window.addEventListener('load', () => {
+            console.log('🚀 App started');
+            connectMQTT();
+        });
+
+        // Обработка закрытия страницы
+        window.addEventListener('beforeunload', () => {
+            if (client) {
+                client.end(true);
+            }
+        });
+
+        // Обработка потери/восстановления соединения
+        window.addEventListener('online', () => {
+            if (!isConnected) {
+                console.log('🌐 Network restored, reconnecting...');
+                connectMQTT();
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            console.log('📵 Network lost');
+            updateConnectionStatus('disconnected', 'status-disconnected', '📵 Нет интернета');
+        });
+    </script>
 </body>
+
 </html>
